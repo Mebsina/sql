@@ -29,7 +29,6 @@ public class OpenSearchQueryManager implements QueryManager {
   @Override
   public QueryId submit(AbstractPlan queryPlan) {
     schedule(nodeClient, () -> queryPlan.execute());
-
     return queryPlan.getQueryId();
   }
 

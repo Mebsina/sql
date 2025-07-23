@@ -56,6 +56,7 @@ public class PPLService {
       ResponseListener<QueryResponse> queryListener,
       ResponseListener<ExplainResponse> explainListener) {
     try {
+      System.out.println("Executing PPL query: " + request.getRequest());
       queryManager.submit(plan(request, queryListener, explainListener));
     } catch (Exception e) {
       queryListener.onFailure(e);
@@ -71,6 +72,7 @@ public class PPLService {
    */
   public void explain(PPLQueryRequest request, ResponseListener<ExplainResponse> listener) {
     try {
+      System.out.println("Explaining PPL query: " + request.getRequest());
       queryManager.submit(plan(request, NO_CONSUMER_RESPONSE_LISTENER, listener));
     } catch (Exception e) {
       listener.onFailure(e);
@@ -82,21 +84,36 @@ public class PPLService {
       ResponseListener<QueryResponse> queryListener,
       ResponseListener<ExplainResponse> explainListener) {
     // 1.Parse query and convert parse tree (CST) to abstract syntax tree (AST)
+    System.out.println("PPLService.plan() - Starting");
+    System.out.println("PPLService.plan() - Request: " + request.getRequest());
+    System.out.println("PPLService.plan() - isExplainRequest: " + request.isExplainRequest());
+    System.out.println("PPLService.plan() - Path: " + request.getPath());
+    
     ParseTree cst = parser.parse(request.getRequest());
+    System.out.println("PPLService.plan() - CST parsed");
+    
+    AstStatementBuilder.StatementBuilderContext context = AstStatementBuilder.StatementBuilderContext.builder()
+        .isExplain(request.isExplainRequest())
+        .format(request.getFormat())
+        .build();
+    
+    System.out.println("PPLService.plan() - StatementBuilderContext.isExplain: " + context.isExplain());
+    
     Statement statement =
         cst.accept(
             new AstStatementBuilder(
                 new AstBuilder(request.getRequest(), settings),
-                AstStatementBuilder.StatementBuilderContext.builder()
-                    .isExplain(request.isExplainRequest())
-                    .format(request.getFormat())
-                    .build()));
+                context));
 
+    System.out.println("PPLService.plan() - Statement type: " + statement.getClass().getSimpleName());
+    
     LOG.info(
         "[{}] Incoming request {}",
         QueryContext.getRequestId(),
         anonymizer.anonymizeStatement(statement));
 
-    return queryExecutionFactory.create(statement, queryListener, explainListener);
+    AbstractPlan plan = queryExecutionFactory.create(statement, queryListener, explainListener);
+    System.out.println("PPLService.plan() - Plan type: " + plan.getClass().getSimpleName());
+    return plan;
   }
 }

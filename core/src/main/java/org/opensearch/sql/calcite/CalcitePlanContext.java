@@ -85,6 +85,9 @@ public class CalcitePlanContext {
   }
 
   public static CalcitePlanContext create(FrameworkConfig config, QueryType queryType) {
+    System.out.println("CalcitePlanContext.create() - Starting");
+    System.out.println("CalcitePlanContext.create() - Config: " + config);
+    System.out.println("CalcitePlanContext.create() - QueryType: " + queryType);
     return new CalcitePlanContext(config, queryType);
   }
 }

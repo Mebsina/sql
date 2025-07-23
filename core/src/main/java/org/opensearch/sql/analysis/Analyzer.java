@@ -146,12 +146,18 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   }
 
   public LogicalPlan analyze(UnresolvedPlan unresolved, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("LogicalPlan analyze");
+    System.out.println("UnresolvedPlan " + unresolved);
+    System.out.println("AnalysisContext " + context);
     return unresolved.accept(this, context);
   }
 
   @Override
   public LogicalPlan visitSubqueryAlias(SubqueryAlias node, AnalysisContext context) {
     LogicalPlan child = analyze(node.getChild().get(0), context);
+    System.out.println("--------------------------");
+    System.out.println("visitSubqueryAlias");
     if (child instanceof LogicalRelation) {
       // Put index name or its alias in index namespace on type environment so qualifier
       // can be removed when analyzing qualified name. The value (expr type) here doesn't matter.
@@ -172,36 +178,60 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   @Override
   public LogicalPlan visitRelation(Relation node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitRelation");
     QualifiedName qualifiedName = node.getTableQualifiedName();
     DataSourceSchemaIdentifierNameResolver dataSourceSchemaIdentifierNameResolver =
         new DataSourceSchemaIdentifierNameResolver(dataSourceService, qualifiedName.getParts());
+
     String tableName = dataSourceSchemaIdentifierNameResolver.getIdentifierName();
+    System.out.println("Table name: " + tableName);
     context.push();
+
     TypeEnvironment curEnv = context.peek();
+
     Table table;
+
     if (DATASOURCES_TABLE_NAME.equals(tableName)) {
       table = new DataSourceTable(dataSourceService);
     } else {
-      table =
-          dataSourceService
-              .getDataSource(dataSourceSchemaIdentifierNameResolver.getDataSourceName())
-              .getStorageEngine()
-              .getTable(
-                  new DataSourceSchemaName(
-                      dataSourceSchemaIdentifierNameResolver.getDataSourceName(),
-                      dataSourceSchemaIdentifierNameResolver.getSchemaName()),
-                  dataSourceSchemaIdentifierNameResolver.getIdentifierName());
+
+        table =
+            dataSourceService
+                .getDataSource(dataSourceSchemaIdentifierNameResolver.getDataSourceName())
+                .getStorageEngine()
+                .getTable(
+                    new DataSourceSchemaName(
+                        dataSourceSchemaIdentifierNameResolver.getDataSourceName(),
+                        dataSourceSchemaIdentifierNameResolver.getSchemaName()),
+                    dataSourceSchemaIdentifierNameResolver.getIdentifierName());
+        System.out.println("Table: " + table);
+        System.out.println("Table class: " + table.getClass().getName());
+
     }
-    table.getFieldTypes().forEach((k, v) -> curEnv.define(new Symbol(Namespace.FIELD_NAME, k), v));
+    System.out.println("Before fieldTypes");
+    System.out.println("Table is: " + table);
+    System.out.println("FieldTypes: " + table.getFieldTypes());
+//    table.getFieldTypes().forEach((k, v) -> curEnv.define(new Symbol(Namespace.FIELD_NAME, k), v));
+    table.getFieldTypes().forEach((k, v) -> {
+      System.out.println("Field: " + k + ", Type: " + v);
+      curEnv.define(new Symbol(Namespace.FIELD_NAME, k), v);
+    });
+
+    System.out.println("Before getReservedFieldTypes");
+
     table
         .getReservedFieldTypes()
         .forEach((k, v) -> curEnv.define(new Symbol(Namespace.HIDDEN_FIELD_NAME, k), v));
 
+    System.out.println("visitRelation Done");
     return new LogicalRelation(tableName, table);
   }
 
   @Override
   public LogicalPlan visitRelationSubquery(RelationSubquery node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitRelationSubquery");
     LogicalPlan subquery = analyze(node.getChild().get(0), context);
     // inherit the parent environment to keep the subquery fields in current environment
     TypeEnvironment curEnv = context.peek();
@@ -214,6 +244,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   @Override
   public LogicalPlan visitTableFunction(TableFunction node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitTableFunction");
     QualifiedName qualifiedName = node.getFunctionName();
     DataSourceSchemaIdentifierNameResolver dataSourceSchemaIdentifierNameResolver =
         new DataSourceSchemaIdentifierNameResolver(
@@ -255,12 +287,16 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   @Override
   public LogicalPlan visitLimit(Limit node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitLimit");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     return new LogicalLimit(child, node.getLimit(), node.getOffset());
   }
 
   @Override
   public LogicalPlan visitFilter(Filter node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitFilter");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     Expression condition = expressionAnalyzer.analyze(node.getCondition(), context);
 
@@ -278,6 +314,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
    * @param condition : Filter condition
    */
   private void verifySupportsCondition(Expression condition) {
+    System.out.println("--------------------------");
+    System.out.println("verifySupportsCondition");
     if (condition instanceof FunctionExpression) {
       if (((FunctionExpression) condition)
           .getFunctionName()
@@ -295,6 +333,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalRename}. */
   @Override
   public LogicalPlan visitRename(Rename node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitRename");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     ImmutableMap.Builder<ReferenceExpression, ReferenceExpression> renameMapBuilder =
         new ImmutableMap.Builder<>();
@@ -322,6 +362,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalAggregation}. */
   @Override
   public LogicalPlan visitAggregation(Aggregation node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitAggregation");
     final LogicalPlan child = node.getChild().get(0).accept(this, context);
     ImmutableList.Builder<NamedAggregator> aggregatorBuilder = new ImmutableList.Builder<>();
     for (UnresolvedExpression expr : node.getAggExprList()) {
@@ -360,6 +402,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalRareTopN}. */
   @Override
   public LogicalPlan visitRareTopN(RareTopN node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitRareTopN");
     final LogicalPlan child = node.getChild().get(0).accept(this, context);
 
     ImmutableList.Builder<Expression> groupbyBuilder = new ImmutableList.Builder<>();
@@ -401,6 +445,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
    */
   @Override
   public LogicalPlan visitProject(Project node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitProject");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
 
     if (node.hasArgument()) {
@@ -455,6 +501,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalEval}. */
   @Override
   public LogicalPlan visitEval(Eval node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitEval");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     ImmutableList.Builder<Pair<ReferenceExpression, Expression>> expressionsBuilder =
         new Builder<>();
@@ -472,6 +520,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link ParseExpression} to context and skip to child nodes. */
   @Override
   public LogicalPlan visitParse(Parse node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitParse");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     Expression sourceField = expressionAnalyzer.analyze(node.getSourceField(), context);
     ParseMethod parseMethod = node.getParseMethod();
@@ -494,6 +544,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   @Override
   public LogicalPlan visitPatterns(Patterns node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitPatterns");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     WindowExpressionAnalyzer windowAnalyzer =
         new WindowExpressionAnalyzer(expressionAnalyzer, child);
@@ -511,6 +563,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalSort}. */
   @Override
   public LogicalPlan visitSort(Sort node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitSort");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     return buildSort(child, context, node.getSortList());
   }
@@ -518,6 +572,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalDedupe}. */
   @Override
   public LogicalPlan visitDedupe(Dedupe node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitDedupe");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     List<Argument> options = node.getOptions();
     // Todo, refactor the option.
@@ -537,12 +593,16 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   /** Logical head is identical to {@link LogicalLimit}. */
   public LogicalPlan visitHead(Head node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitHead");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     return new LogicalLimit(child, node.getSize(), node.getFrom());
   }
 
   @Override
   public LogicalPlan visitValues(Values node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitValues");
     List<List<Literal>> values = node.getValues();
     List<List<LiteralExpression>> valueExprs = new ArrayList<>();
     for (List<Literal> value : values) {
@@ -557,6 +617,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalMLCommons} for Kmeans command. */
   @Override
   public LogicalPlan visitKmeans(Kmeans node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitKmeans");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     java.util.Map<String, Literal> options = node.getArguments();
 
@@ -569,6 +631,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalAD} for AD command. */
   @Override
   public LogicalPlan visitAD(AD node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitAD");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     java.util.Map<String, Literal> options = node.getArguments();
 
@@ -589,6 +653,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalEval} for fillnull command. */
   @Override
   public LogicalPlan visitFillNull(final FillNull node, final AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitFillNull");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
 
     ImmutableList.Builder<Pair<ReferenceExpression, Expression>> expressionsBuilder =
@@ -614,6 +680,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalML} for ml command. */
   @Override
   public LogicalPlan visitML(ML node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitML");
     LogicalPlan child = node.getChild().get(0).accept(this, context);
     TypeEnvironment currentEnv = context.peek();
     node.getOutputSchema(currentEnv).entrySet().stream()
@@ -626,6 +694,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
   /** Build {@link LogicalTrendline} for Trendline command. */
   @Override
   public LogicalPlan visitTrendline(Trendline node, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitTrendline");
     final LogicalPlan child = node.getChild().get(0).accept(this, context);
 
     final TypeEnvironment currEnv = context.peek();
@@ -674,12 +744,16 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   @Override
   public LogicalPlan visitPaginate(Paginate paginate, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitPaginate");
     LogicalPlan child = paginate.getChild().get(0).accept(this, context);
     return new LogicalPaginate(paginate.getPageSize(), List.of(child));
   }
 
   @Override
   public LogicalPlan visitFetchCursor(FetchCursor cursor, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitFetchCursor");
     return new LogicalFetchCursor(
         cursor.getCursor(),
         dataSourceService.getDataSource(DEFAULT_DATASOURCE_NAME).getStorageEngine());
@@ -687,6 +761,8 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   @Override
   public LogicalPlan visitCloseCursor(CloseCursor closeCursor, AnalysisContext context) {
+    System.out.println("--------------------------");
+    System.out.println("visitCloseCursor");
     return new LogicalCloseCursor(closeCursor.getChild().get(0).accept(this, context));
   }
 
@@ -704,6 +780,7 @@ public class Analyzer extends AbstractNodeVisitor<LogicalPlan, AnalysisContext> 
 
   private LogicalSort buildSort(
       LogicalPlan child, AnalysisContext context, List<Field> sortFields) {
+
     ExpressionReferenceOptimizer optimizer =
         new ExpressionReferenceOptimizer(expressionAnalyzer.getRepository(), child);
 

@@ -97,11 +97,26 @@ public class OpenSearchDescribeIndexRequest implements OpenSearchSystemRequest {
    */
   // TODO possible collision if two indices have fields with the same name and different mappings
   public Map<String, OpenSearchDataType> getFieldTypes() {
+    System.out.println("In OpenSearchDescribeIndexRequest.getFieldTypes");
     Map<String, OpenSearchDataType> fieldTypes = new HashMap<>();
+
+    System.out.println("=================");
+    System.out.println("Client type: " + client.getClass().getName());
+
     Map<String, IndexMapping> indexMappings =
         client.getIndexMappings(getLocalIndexNames(indexName.getIndexNames()));
+    System.out.println("-----------------");
+    System.out.println("indexMappings is " + indexMappings.toString());
     for (IndexMapping indexMapping : indexMappings.values()) {
-      fieldTypes.putAll(indexMapping.getFieldMappings());
+
+//      fieldTypes.putAll(indexMapping.getFieldMappings());
+        Map<String, OpenSearchDataType> fields = indexMapping.getFieldMappings();
+        System.out.println("fields is " + fields.toString());
+        for (Map.Entry<String, OpenSearchDataType> entry : fields.entrySet()) {
+          System.out.println("Field: " + entry.getKey() + ", Type: " + entry.getValue());
+        }
+
+        fieldTypes.putAll(fields);
     }
     return fieldTypes;
   }
@@ -148,9 +163,21 @@ public class OpenSearchDescribeIndexRequest implements OpenSearchSystemRequest {
    * @return local cluster index names
    */
   private String[] getLocalIndexNames(String[] indexNames) {
+    System.out.println("In OpenSearchDescribeIndexRequest.getLocalIndexNames");
+    System.out.println("client: " + client.getClass().getName());
+
+    System.out.println("indexNames is " + Arrays.toString(indexNames));
+
+    String[] localNames = Arrays.stream(indexNames)
+            .map(name -> name.contains(":") ? name.substring(name.indexOf(":") + 1) : name)
+            .toArray(String[]::new);
+
+    System.out.println("Local index names: " + Arrays.toString(localNames));
+
     return Arrays.stream(indexNames)
-        .map(name -> name.substring(name.indexOf(":") + 1))
-        .toArray(String[]::new);
+            .map(name -> name.substring(name.indexOf(":") + 1))
+            .toArray(String[]::new);
+
   }
 
   private String clusterName(Map<String, String> meta) {

@@ -33,16 +33,36 @@ public class AstStatementBuilder extends OpenSearchPPLParserBaseVisitor<Statemen
 
   @Override
   public Statement visitDmlStatement(OpenSearchPPLParser.DmlStatementContext ctx) {
+    System.out.println("AstStatementBuilder.visitDmlStatement() - Starting");
+    System.out.println("AstStatementBuilder.visitDmlStatement() - Context.isExplain: " + context.isExplain);
+    System.out.println("AstStatementBuilder.visitDmlStatement() - Context.format: " + context.format);
+    System.out.println("AstStatementBuilder.visitDmlStatement() - Has explainStatement: " + (ctx.explainStatement() != null));
+    
     Query query = new Query(addSelectAll(astBuilder.visit(ctx)), context.getFetchSize(), PPL);
+    
+    Statement result;
     if (ctx.explainStatement() != null) {
+      System.out.println("AstStatementBuilder.visitDmlStatement() - Using ctx.explainStatement()");
       if (ctx.explainStatement().explainMode() == null) {
-        return new Explain(query, PPL);
+        System.out.println("AstStatementBuilder.visitDmlStatement() - No explainMode, creating Explain");
+        result = new Explain(query, PPL);
       } else {
-        return new Explain(query, PPL, ctx.explainStatement().explainMode().getText());
+        System.out.println("AstStatementBuilder.visitDmlStatement() - With explainMode: " + ctx.explainStatement().explainMode().getText());
+        result = new Explain(query, PPL, ctx.explainStatement().explainMode().getText());
       }
     } else {
-      return context.isExplain ? new Explain(query, PPL, context.format) : query;
+      System.out.println("AstStatementBuilder.visitDmlStatement() - No ctx.explainStatement()");
+      if (context.isExplain) {
+        System.out.println("AstStatementBuilder.visitDmlStatement() - Using context.isExplain, creating Explain");
+        result = new Explain(query, PPL, context.format);
+      } else {
+        System.out.println("AstStatementBuilder.visitDmlStatement() - Not an explain, creating Query");
+        result = query;
+      }
     }
+    
+    System.out.println("AstStatementBuilder.visitDmlStatement() - Result type: " + result.getClass().getSimpleName());
+    return result;
   }
 
   @Override

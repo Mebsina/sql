@@ -130,11 +130,17 @@ public class OpenSearchIndex extends AbstractOpenSearchTable {
    */
   @Override
   public Map<String, ExprType> getFieldTypes() {
+    System.out.println("In OpenSearchIndex.getFieldTypes");
+
     if (cachedFieldOpenSearchTypes == null) {
+      System.out.println("cachedFieldOpenSearchTypes is null");
       cachedFieldOpenSearchTypes =
           new OpenSearchDescribeIndexRequest(client, indexName).getFieldTypes();
+      System.out.println("New cachedFieldOpenSearchTypes is " + cachedFieldOpenSearchTypes.toString());
     }
     if (cachedFieldTypes == null) {
+      System.out.println("cachedFieldTypes is null");
+      System.out.println("cachedFieldOpenSearchTypes is " + cachedFieldOpenSearchTypes.toString());
       cachedFieldTypes =
           OpenSearchDataType.traverseAndFlatten(cachedFieldOpenSearchTypes).entrySet().stream()
               .collect(
@@ -142,6 +148,7 @@ public class OpenSearchIndex extends AbstractOpenSearchTable {
                   (map, item) -> map.put(item.getKey(), item.getValue().getExprType()),
                   Map::putAll);
     }
+    System.out.println("cachedFieldTypes is " + cachedFieldTypes.toString());
     return cachedFieldTypes;
   }
 

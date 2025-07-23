@@ -37,7 +37,11 @@ public class ExplainPlan extends AbstractPlan {
 
   @Override
   public void execute() {
+    System.out.println("ExplainPlan.execute() - About to call plan.explain()");
+    System.out.println("ExplainPlan.execute() - Plan type: " + plan.getClass().getSimpleName());
+    System.out.println("ExplainPlan.execute() - Format: " + format);
     plan.explain(explainListener, format);
+    System.out.println("ExplainPlan.execute() - After calling plan.explain()");
   }
 
   @Override

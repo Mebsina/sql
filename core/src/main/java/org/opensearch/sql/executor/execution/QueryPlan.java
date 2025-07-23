@@ -63,22 +63,40 @@ public class QueryPlan extends AbstractPlan {
 
   @Override
   public void execute() {
+    System.out.println("inside of execute");
     if (pageSize.isPresent()) {
+      System.out.println("inside of execute with page size");
+      System.out.println(pageSize.get());
       queryService.execute(new Paginate(pageSize.get(), plan), getQueryType(), listener);
     } else {
+      System.out.println("inside of execute without page size");
+      System.out.println(plan);
+      System.out.println(getQueryType());
+      System.out.println(listener);
       queryService.execute(plan, getQueryType(), listener);
+      System.out.println("after execute");
     }
   }
 
   @Override
   public void explain(
       ResponseListener<ExecutionEngine.ExplainResponse> listener, Explain.ExplainFormat format) {
+    System.out.println("QueryPlan.explain() - Starting");
+    System.out.println("QueryPlan.explain() - Plan: " + plan);
+    System.out.println("QueryPlan.explain() - QueryType: " + getQueryType());
+    System.out.println("QueryPlan.explain() - Format: " + format);
+    System.out.println("QueryPlan.explain() - QueryService: " + queryService);
+    
     if (pageSize.isPresent()) {
+      System.out.println("QueryPlan.explain() - Inside explain with page size: " + pageSize.get());
       listener.onFailure(
           new NotImplementedException(
               "`explain` feature for paginated requests is not implemented yet."));
     } else {
+      System.out.println("QueryPlan.explain() - Inside explain without page size");
+      System.out.println("QueryPlan.explain() - About to call queryService.explain()");
       queryService.explain(plan, getQueryType(), listener, format);
+      System.out.println("QueryPlan.explain() - After calling queryService.explain()");
     }
   }
 }

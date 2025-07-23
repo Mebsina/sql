@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.lang.reflect.Field;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -103,30 +104,52 @@ public class OpenSearchRequestBuilder {
       int maxResultWindow,
       TimeValue cursorKeepAlive,
       OpenSearchClient client) {
+    System.out.println("OpenSearchRequestBuilder.buildRequestWithPit()");
     int size = requestedTotalSize;
     FetchSourceContext fetchSource = this.sourceBuilder.fetchSource();
     List<String> includes = fetchSource != null ? Arrays.asList(fetchSource.includes()) : List.of();
+    
+    // Print the values as requested
+    System.out.println("size: " + size);
+    System.out.println("fetchSource: " + fetchSource);
+    System.out.println("includes: " + includes);
 
     if (pageSize == null) {
+      System.out.println("pageSize is null");
       if (startFrom + size > maxResultWindow) {
+        System.out.println("startFrom + size > maxResultWindow: " + startFrom + " + " + size + " > " + maxResultWindow);
+        System.out.println("Setting sourceBuilder.size to: " + (maxResultWindow - startFrom));
         sourceBuilder.size(maxResultWindow - startFrom);
         // Search with PIT request
+        System.out.println("Creating PIT request...");
         String pitId = createPit(indexName, cursorKeepAlive, client);
+        System.out.println("PIT ID created: " + pitId);
+        System.out.println("Returning OpenSearchQueryRequest with PIT");
         return new OpenSearchQueryRequest(
             indexName, sourceBuilder, exprValueFactory, includes, cursorKeepAlive, pitId);
       } else {
+        System.out.println("startFrom + size <= maxResultWindow: " + startFrom + " + " + size + " <= " + maxResultWindow);
+        System.out.println("Setting sourceBuilder.from to: " + startFrom);
         sourceBuilder.from(startFrom);
+        System.out.println("Setting sourceBuilder.size to: " + requestedTotalSize);
         sourceBuilder.size(requestedTotalSize);
         // Search with non-Pit request
+        System.out.println("Returning OpenSearchQueryRequest without PIT");
         return new OpenSearchQueryRequest(indexName, sourceBuilder, exprValueFactory, includes);
       }
     } else {
+      System.out.println("pageSize is not null: " + pageSize);
       if (startFrom != 0) {
+        System.out.println("startFrom is not 0: " + startFrom);
         throw new UnsupportedOperationException("Non-zero offset is not supported with pagination");
       }
+      System.out.println("Setting sourceBuilder.size to pageSize: " + pageSize);
       sourceBuilder.size(pageSize);
       // Search with PIT request
+      System.out.println("Creating PIT request with pagination...");
       String pitId = createPit(indexName, cursorKeepAlive, client);
+      System.out.println("PIT ID created: " + pitId);
+      System.out.println("Returning OpenSearchQueryRequest with PIT and pagination");
       return new OpenSearchQueryRequest(
           indexName, sourceBuilder, exprValueFactory, includes, cursorKeepAlive, pitId);
     }
@@ -134,10 +157,32 @@ public class OpenSearchRequestBuilder {
 
   private String createPit(
       OpenSearchRequest.IndexName indexName, TimeValue cursorKeepAlive, OpenSearchClient client) {
-    // Create PIT ID for request
+    System.out.println("OpenSearchRequestBuilder.createPit()");
+    System.out.println("Index Names: " + Arrays.toString(indexName.getIndexNames()));
+    System.out.println("Cursor Keep Alive: " + cursorKeepAlive);
+
     CreatePitRequest createPitRequest =
         new CreatePitRequest(cursorKeepAlive, false, indexName.getIndexNames());
-    return client.createPit(createPitRequest);
+    
+    System.out.println("CreatePitRequest: " + createPitRequest.toString());
+
+    // Print all fields using reflection
+    System.out.println("PIT Request - All fields:");
+    try {
+        Field[] fields = CreatePitRequest.class.getDeclaredFields();
+        for (Field field : fields) {
+            field.setAccessible(true);
+            System.out.println(" " + field.getName() + ": " + field.get(createPitRequest));
+        }
+    } catch (Exception e) {
+        System.out.println("Error printing fields: " + e.getMessage());
+    }
+    
+    System.out.println("Calling client.createPit()");
+    String pitId = client.createPit(createPitRequest);
+    System.out.println("PIT ID returned: " + pitId);
+    
+    return pitId;
   }
 
   boolean isBoolFilterQuery(QueryBuilder current) {

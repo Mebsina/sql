@@ -222,27 +222,63 @@ public class CalciteToolsHelper {
      * org.apache.calcite.tools.RelRunners#run(RelNode)}
      */
     public static PreparedStatement run(CalcitePlanContext context, RelNode rel) {
-      final RelShuttle shuttle =
-          new RelHomogeneousShuttle() {
-            @Override
-            public RelNode visit(TableScan scan) {
-              final RelOptTable table = scan.getTable();
-              if (scan instanceof LogicalTableScan
-                  && Bindables.BindableTableScan.canHandle(table)) {
-                // Always replace the LogicalTableScan with BindableTableScan
-                // because it's implementation does not require a "schema" as context.
-                return Bindables.BindableTableScan.create(scan.getCluster(), table);
+      System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Starting");
+      System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Context: " + context);
+      System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - RelNode: " + rel);
+      System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - RelNode class: " + rel.getClass().getSimpleName());
+      
+      try {
+        System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Creating RelShuttle");
+        final RelShuttle shuttle =
+            new RelHomogeneousShuttle() {
+              @Override
+              public RelNode visit(TableScan scan) {
+                System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Visiting TableScan: " + scan);
+                final RelOptTable table = scan.getTable();
+                System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Table: " + table);
+                
+                if (scan instanceof LogicalTableScan
+                    && Bindables.BindableTableScan.canHandle(table)) {
+                  System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Creating BindableTableScan");
+                  // Always replace the LogicalTableScan with BindableTableScan
+                  // because it's implementation does not require a "schema" as context.
+                  return Bindables.BindableTableScan.create(scan.getCluster(), table);
+                }
+                System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Using super.visit(scan)");
+                return super.visit(scan);
               }
-              return super.visit(scan);
-            }
-          };
-      rel = rel.accept(shuttle);
-      // the line we changed here
-      try (Connection connection = context.connection) {
-        final RelRunner runner = connection.unwrap(RelRunner.class);
-        return runner.prepareStatement(rel);
-      } catch (SQLException e) {
-        throw Util.throwAsRuntime(e);
+            };
+        
+        System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Applying shuttle to RelNode");
+        rel = rel.accept(shuttle);
+        System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - After shuttle: " + rel);
+        
+        // the line we changed here
+        System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Getting connection from context");
+        System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Context connection: " + context.connection);
+        
+        try (Connection connection = context.connection) {
+          System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Connection: " + connection);
+          System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Connection class: " + 
+                            (connection != null ? connection.getClass().getName() : "null"));
+          
+          System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Getting RelRunner from connection");
+          final RelRunner runner = connection.unwrap(RelRunner.class);
+          System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - RelRunner: " + runner);
+          
+          System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Preparing statement");
+          PreparedStatement statement = runner.prepareStatement(rel);
+          
+          return statement;
+        } catch (SQLException e) {
+          System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - SQLException: " + e.getMessage());
+          e.printStackTrace();
+          throw Util.throwAsRuntime(e);
+        }
+      } catch (Exception e) {
+        System.out.println("CalciteToolsHelper.OpenSearchRelRunners.run() - Exception: " + e.getMessage());
+        e.printStackTrace();
+        throw e;
       }
     }
   }

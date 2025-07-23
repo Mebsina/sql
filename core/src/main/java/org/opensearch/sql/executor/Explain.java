@@ -49,6 +49,7 @@ public class Explain extends PhysicalPlanNodeVisitor<ExplainResponseNode, Object
 
   @Override
   public ExplainResponseNode visitProject(ProjectOperator node, Object context) {
+    System.out.println("Explain.visitProject()");
     return explain(
         node,
         context,
@@ -69,6 +70,7 @@ public class Explain extends PhysicalPlanNodeVisitor<ExplainResponseNode, Object
 
   @Override
   public ExplainResponseNode visitSort(SortOperator node, Object context) {
+    System.out.println("Explain.visitSort()");
     return explain(
         node,
         context,
@@ -79,6 +81,7 @@ public class Explain extends PhysicalPlanNodeVisitor<ExplainResponseNode, Object
 
   @Override
   public ExplainResponseNode visitTakeOrdered(TakeOrderedOperator node, Object context) {
+    System.out.println("Explain.visitTakeOrdered()");
     return explain(
         node,
         context,

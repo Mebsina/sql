@@ -27,15 +27,31 @@ public class SQLSyntaxParser implements Parser {
    */
   @Override
   public ParseTree parse(String query) {
+    // Add debugging output with System.out.println
+    System.out.println("DEBUG: Starting SQL parsing process for query: " + query);
+    
     AnonymizerListener anonymizer = new AnonymizerListener();
+    System.out.println("DEBUG: Created AnonymizerListener");
 
     OpenSearchSQLLexer lexer = new OpenSearchSQLLexer(new CaseInsensitiveCharStream(query));
+    System.out.println("DEBUG: Initialized lexer with case-insensitive character stream");
+    
     OpenSearchSQLParser parser = new OpenSearchSQLParser(new CommonTokenStream(lexer));
+    System.out.println("DEBUG: Created parser with CommonTokenStream");
+    
     parser.addErrorListener(new SyntaxAnalysisErrorListener());
+    System.out.println("DEBUG: Added SyntaxAnalysisErrorListener to parser");
+    
     parser.addParseListener(anonymizer);
+    System.out.println("DEBUG: Added AnonymizerListener to parser");
 
+    System.out.println("DEBUG: Beginning actual parsing operation with parser.root()");
     ParseTree parseTree = parser.root();
-    LOG.info("New Engine Request Query: {}", anonymizer.getAnonymizedQueryString());
+    System.out.println("DEBUG: Parse tree generated successfully");
+    
+    String anonymizedQuery = anonymizer.getAnonymizedQueryString();
+    System.out.println("DEBUG: Anonymized query: " + anonymizedQuery);
+    LOG.info("New Engine Request Query: {}", anonymizedQuery);
 
     return parseTree;
   }

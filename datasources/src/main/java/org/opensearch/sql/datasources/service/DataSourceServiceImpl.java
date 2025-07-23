@@ -51,6 +51,7 @@ public class DataSourceServiceImpl implements DataSourceService {
 
   @Override
   public Set<DataSourceMetadata> getDataSourceMetadata(boolean isDefaultDataSourceRequired) {
+    System.out.println("Inside getDataSourceMetadata");
     List<DataSourceMetadata> dataSourceMetadataList =
         this.dataSourceMetadataStorage.getDataSourceMetadata();
     Set<DataSourceMetadata> dataSourceMetadataSet = new HashSet<>(dataSourceMetadataList);
@@ -68,13 +69,18 @@ public class DataSourceServiceImpl implements DataSourceService {
 
   @Override
   public DataSource getDataSource(String dataSourceName) {
+    System.out.println("Inside DataSourceServiceImpl.getDataSource");
+    System.out.println("dataSourceName = " + dataSourceName);
     DataSourceMetadata dataSourceMetadata = getRawDataSourceMetadata(dataSourceName);
+    System.out.println("dataSourceMetadata = " + dataSourceMetadata);
     verifyDataSourceAccess(dataSourceMetadata);
     return dataSourceLoaderCache.getOrLoadDataSource(dataSourceMetadata);
   }
 
   @Override
   public void createDataSource(DataSourceMetadata metadata) {
+    System.out.println("Inside DataSourceServiceImpl.createDataSource");
+    System.out.println("metadata = " + metadata);
     if (!metadata.getName().equals(DEFAULT_DATASOURCE_NAME)) {
       this.dataSourceLoaderCache.getOrLoadDataSource(metadata);
       this.dataSourceMetadataStorage.createDataSourceMetadata(metadata);
@@ -83,6 +89,9 @@ public class DataSourceServiceImpl implements DataSourceService {
 
   @Override
   public void updateDataSource(DataSourceMetadata dataSourceMetadata) {
+    System.out.println("Inside DataSourceServiceImpl.updateDataSource");
+    System.out.println("dataSourceMetadata = " + dataSourceMetadata);
+
     if (!dataSourceMetadata.getName().equals(DEFAULT_DATASOURCE_NAME)) {
       this.dataSourceLoaderCache.getOrLoadDataSource(dataSourceMetadata);
       this.dataSourceMetadataStorage.updateDataSourceMetadata(dataSourceMetadata);
@@ -94,6 +103,9 @@ public class DataSourceServiceImpl implements DataSourceService {
 
   @Override
   public void patchDataSource(Map<String, Object> dataSourceData) {
+    System.out.println("Inside DataSourceServiceImpl.patchDataSource");
+    System.out.println("dataSourceData = " + dataSourceData);
+
     if (!dataSourceData.get(NAME_FIELD).equals(DEFAULT_DATASOURCE_NAME)) {
       DataSourceMetadata dataSourceMetadata =
           getRawDataSourceMetadata((String) dataSourceData.get(NAME_FIELD));

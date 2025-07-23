@@ -63,7 +63,10 @@ public class OpenSearchExecutionEngine implements ExecutionEngine {
       PhysicalPlan physicalPlan,
       ExecutionContext context,
       ResponseListener<QueryResponse> listener) {
-    PhysicalPlan plan = executionProtector.protect(physicalPlan);
+      System.out.println("OpenSearchExecutionEngine.execute");
+      System.out.println("OpenSearchExecutionEngine.execute" + physicalPlan);
+      PhysicalPlan plan = executionProtector.protect(physicalPlan);
+      System.out.println("OpenSearchExecutionEngine.execute" + plan);
     client.schedule(
         () -> {
           try {
@@ -173,55 +176,114 @@ public class OpenSearchExecutionEngine implements ExecutionEngine {
   @Override
   public void execute(
       RelNode rel, CalcitePlanContext context, ResponseListener<QueryResponse> listener) {
+    System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Starting");
+    System.out.println("OpenSearchExecutionEngine.execute(RelNode) - RelNode: " + rel);
+    System.out.println("OpenSearchExecutionEngine.execute(RelNode) - RelNode class: " + rel.getClass().getSimpleName());
+    System.out.println("OpenSearchExecutionEngine.execute(RelNode) - RelNode type: " + rel.getRowType());
+    System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Context: " + context);
+    
     client.schedule(
-        () ->
+        () -> {
+            System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Inside client.schedule()");
+            
             AccessController.doPrivileged(
                 (PrivilegedAction<Void>)
                     () -> {
-                      try (PreparedStatement statement = OpenSearchRelRunners.run(context, rel)) {
-                        ResultSet result = statement.executeQuery();
-                        buildResultSet(result, rel.getRowType(), listener);
+                      try {
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Inside doPrivileged");
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - About to run OpenSearchRelRunners.run()");
+                          
+                          PreparedStatement statement = OpenSearchRelRunners.run(context, rel);
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Statement created: " + statement);
+                          
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - About to execute query");
+                          ResultSet result = statement.executeQuery();
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Query executed, got ResultSet: " + result);
+                          
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Building result set");
+                          buildResultSet(result, rel.getRowType(), listener);
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Result set built and sent to listener");
                       } catch (SQLException e) {
-                        throw new RuntimeException(e);
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - SQLException: " + e.getMessage());
+                          e.printStackTrace();
+                          throw new RuntimeException(e);
+                      } catch (Exception e) {
+                          System.out.println("OpenSearchExecutionEngine.execute(RelNode) - Exception: " + e.getMessage());
+                          e.printStackTrace();
+                          throw e;
                       }
                       return null;
-                    }));
+                    });
+            System.out.println("OpenSearchExecutionEngine.execute(RelNode) - After doPrivileged");
+        });
+    System.out.println("OpenSearchExecutionEngine.execute(RelNode) - After scheduling");
   }
 
   private void buildResultSet(
       ResultSet resultSet, RelDataType rowTypes, ResponseListener<QueryResponse> listener)
       throws SQLException {
-    // Get the ResultSet metadata to know about columns
-    ResultSetMetaData metaData = resultSet.getMetaData();
-    int columnCount = metaData.getColumnCount();
-    List<RelDataType> fieldTypes =
-        rowTypes.getFieldList().stream().map(RelDataTypeField::getType).toList();
-    List<ExprValue> values = new ArrayList<>();
-    // Iterate through the ResultSet
-    while (resultSet.next()) {
-      Map<String, ExprValue> row = new LinkedHashMap<String, ExprValue>();
-      // Loop through each column
-      for (int i = 1; i <= columnCount; i++) {
-        String columnName = metaData.getColumnName(i);
-        int sqlType = metaData.getColumnType(i);
-        RelDataType fieldType = fieldTypes.get(i - 1);
-        ExprValue exprValue =
-            JdbcOpenSearchDataTypeConvertor.getExprValueFromSqlType(
-                resultSet, i, sqlType, fieldType, columnName);
-        row.put(columnName, exprValue);
+    System.out.println("OpenSearchExecutionEngine.buildResultSet() - Starting");
+    System.out.println("OpenSearchExecutionEngine.buildResultSet() - ResultSet: " + resultSet);
+    System.out.println("OpenSearchExecutionEngine.buildResultSet() - RowTypes: " + rowTypes);
+    
+    try {
+      // Get the ResultSet metadata to know about columns
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Getting metadata");
+      ResultSetMetaData metaData = resultSet.getMetaData();
+      int columnCount = metaData.getColumnCount();
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Column count: " + columnCount);
+      
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Getting field types");
+      List<RelDataType> fieldTypes =
+          rowTypes.getFieldList().stream().map(RelDataTypeField::getType).toList();
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Field types: " + fieldTypes);
+      
+      List<ExprValue> values = new ArrayList<>();
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Iterating through ResultSet");
+      
+      // Iterate through the ResultSet
+      int rowCount = 0;
+      while (resultSet.next()) {
+        rowCount++;
+        Map<String, ExprValue> row = new LinkedHashMap<String, ExprValue>();
+        // Loop through each column
+        for (int i = 1; i <= columnCount; i++) {
+          String columnName = metaData.getColumnName(i);
+          int sqlType = metaData.getColumnType(i);
+          RelDataType fieldType = fieldTypes.get(i - 1);
+          System.out.println("OpenSearchExecutionEngine.buildResultSet() - Processing column: " + columnName + 
+                            ", SQL type: " + sqlType + ", Field type: " + fieldType);
+          
+          ExprValue exprValue =
+              JdbcOpenSearchDataTypeConvertor.getExprValueFromSqlType(
+                  resultSet, i, sqlType, fieldType, columnName);
+          row.put(columnName, exprValue);
+        }
+        values.add(ExprTupleValue.fromExprValueMap(row));
       }
-      values.add(ExprTupleValue.fromExprValueMap(row));
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Processed " + rowCount + " rows");
+  
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Building schema");
+      List<Column> columns = new ArrayList<>(metaData.getColumnCount());
+      for (int i = 1; i <= columnCount; ++i) {
+        String columnName = metaData.getColumnName(i);
+        RelDataType fieldType = fieldTypes.get(i - 1);
+        ExprType exprType = convertRelDataTypeToExprType(fieldType);
+        System.out.println("OpenSearchExecutionEngine.buildResultSet() - Adding column: " + columnName + 
+                          ", Field type: " + fieldType + ", Expr type: " + exprType);
+        columns.add(new Column(columnName, null, exprType));
+      }
+      Schema schema = new Schema(columns);
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Schema built: " + schema);
+      
+      QueryResponse response = new QueryResponse(schema, values, null);
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Response created, sending to listener");
+      listener.onResponse(response);
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Response sent to listener");
+    } catch (Exception e) {
+      System.out.println("OpenSearchExecutionEngine.buildResultSet() - Exception: " + e.getMessage());
+      e.printStackTrace();
+      throw e;
     }
-
-    List<Column> columns = new ArrayList<>(metaData.getColumnCount());
-    for (int i = 1; i <= columnCount; ++i) {
-      String columnName = metaData.getColumnName(i);
-      RelDataType fieldType = fieldTypes.get(i - 1);
-      ExprType exprType = convertRelDataTypeToExprType(fieldType);
-      columns.add(new Column(columnName, null, exprType));
-    }
-    Schema schema = new Schema(columns);
-    QueryResponse response = new QueryResponse(schema, values, null);
-    listener.onResponse(response);
   }
 }

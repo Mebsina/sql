@@ -10,6 +10,8 @@ import static org.opensearch.search.sort.FieldSortBuilder.DOC_FIELD_NAME;
 import static org.opensearch.search.sort.SortOrder.ASC;
 import static org.opensearch.sql.opensearch.storage.OpenSearchIndex.METADATA_FIELD_ID;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -160,17 +162,45 @@ public class OpenSearchQueryRequest implements OpenSearchRequest {
   public OpenSearchResponse search(
       Function<SearchRequest, SearchResponse> searchAction,
       Function<SearchScrollRequest, SearchResponse> scrollAction) {
+    System.out.println("In OpenSearchQueryRequest.search");
+
     if (this.pitId == null) {
       // When SearchRequest doesn't contain PitId, fetch single page request
       if (searchDone) {
+        System.out.println("searchDone");
         return new OpenSearchResponse(SearchHits.empty(), exprValueFactory, includes);
       } else {
         searchDone = true;
-        return new OpenSearchResponse(
-            searchAction.apply(
-                new SearchRequest().indices(indexName.getIndexNames()).source(sourceBuilder)),
-            exprValueFactory,
-            includes);
+        
+        String dslQuery = sourceBuilder.toString();
+        System.out.println("DSL Query:\n " + dslQuery);
+        // try {
+        //     File dslFile = new File("/Users/cnoramut/Documents/GitHub/opensearchsql-cli/src/main/java/aws_body");
+        //     System.out.println("Attempting to write to file: " + dslFile.getAbsolutePath());
+            
+        //     // Write the file
+        //     FileWriter writer = new FileWriter(dslFile);
+        //     writer.write(dslQuery);
+        //     writer.flush();
+        //     writer.close();
+        //     System.out.println("Wrote DSL query to file: " + dslFile.getAbsolutePath());
+        // } catch (Exception e) {
+        //     System.out.println("Failed to write DSL query to file: " + e.getMessage());
+        //     e.printStackTrace();
+        // }
+        // Create the SearchRequest object
+        SearchRequest searchRequest = new SearchRequest()
+            .indices(indexName.getIndexNames())
+            .source(sourceBuilder);
+        
+        System.out.println("SearchRequest from OpenSearchQueryRequest.search(): " + searchRequest.toString());
+        
+        // Execute the search and get the response
+        SearchResponse searchResponse = searchAction.apply(searchRequest);
+        
+        System.out.println("SearchResponse from OpenSearchQueryRequest.search(): " + searchResponse.toString());
+        
+        return new OpenSearchResponse(searchResponse, exprValueFactory, includes);
       }
     } else {
       // Search with PIT instead of scroll API
@@ -179,34 +209,73 @@ public class OpenSearchQueryRequest implements OpenSearchRequest {
   }
 
   public OpenSearchResponse searchWithPIT(Function<SearchRequest, SearchResponse> searchAction) {
+    System.out.println("In OpenSearchQueryRequest.searchWithPIT");
+    System.out.println("PIT ID: " + this.pitId);
+    System.out.println("Keep Alive: " + this.cursorKeepAlive);
+    
     OpenSearchResponse openSearchResponse;
     if (searchDone) {
+      System.out.println("searchDone for PIT, returning empty results");
       openSearchResponse = new OpenSearchResponse(SearchHits.empty(), exprValueFactory, includes);
     } else {
+      System.out.println("Configuring PIT search request");
       this.sourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(this.pitId));
       this.sourceBuilder.timeout(cursorKeepAlive);
+      
       // check for search after
       if (searchAfter != null) {
+        System.out.println("Using searchAfter with values: " + java.util.Arrays.toString(searchAfter));
         this.sourceBuilder.searchAfter(searchAfter);
+      } else {
+        System.out.println("No searchAfter values available");
       }
+      
       // Set sort field for search_after
       if (this.sourceBuilder.sorts() == null) {
+        System.out.println("Adding default sort fields for PIT");
         this.sourceBuilder.sort(DOC_FIELD_NAME, ASC);
         // Workaround to preserve sort location more exactly,
         // see https://github.com/opensearch-project/sql/pull/3061
         this.sourceBuilder.sort(METADATA_FIELD_ID, ASC);
       }
-      SearchRequest searchRequest = new SearchRequest().source(this.sourceBuilder);
-      this.searchResponse = searchAction.apply(searchRequest);
+      
+      String dslQuery = sourceBuilder.toString();
+      System.out.println("PIT DSL Query:\n " + dslQuery);
+      // try {
+      //     File dslFile = new File("/Users/cnoramut/Documents/GitHub/opensearchsql-cli/src/main/java/aws_body");
+      //     System.out.println("Attempting to write to file: " + dslFile.getAbsolutePath());
+          
+      //     // Write the file
+      //     FileWriter writer = new FileWriter(dslFile);
+      //     writer.write(dslQuery);
+      //     writer.flush();
+      //     writer.close();
+      //     System.out.println("Wrote DSL query to file: " + dslFile.getAbsolutePath());
+      // } catch (Exception e) {
+      //     System.out.println("Failed to write DSL query to file: " + e.getMessage());
+      //     e.printStackTrace();
+      // }
 
+      SearchRequest searchRequest = new SearchRequest().source(this.sourceBuilder);
+      System.out.println("Executing PIT search request");
+      this.searchResponse = searchAction.apply(searchRequest);
+      
+      System.out.println("PIT search response received, total hits: " + 
+          (this.searchResponse.getHits() != null ? this.searchResponse.getHits().getTotalHits() : "null"));
+      
       openSearchResponse = new OpenSearchResponse(this.searchResponse, exprValueFactory, includes);
 
       needClean = openSearchResponse.isEmpty();
       searchDone = openSearchResponse.isEmpty();
+      System.out.println("PIT search results empty: " + openSearchResponse.isEmpty());
+      
       SearchHit[] searchHits = this.searchResponse.getHits().getHits();
       if (searchHits != null && searchHits.length > 0) {
+        System.out.println("Retrieved " + searchHits.length + " hits, updating searchAfter");
         searchAfter = searchHits[searchHits.length - 1].getSortValues();
         this.sourceBuilder.searchAfter(searchAfter);
+      } else {
+        System.out.println("No search hits found");
       }
     }
     return openSearchResponse;

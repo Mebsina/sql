@@ -104,6 +104,7 @@ public class RestSqlAction extends BaseRestHandler {
 
   @Override
   protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+    System.out.println("RestSqlAction.prepareRequest() - Starting to process SQL request");
     Metrics.getInstance().getNumericalMetric(MetricName.REQ_TOTAL).increment();
     Metrics.getInstance().getNumericalMetric(MetricName.REQ_COUNT_TOTAL).increment();
 
@@ -135,6 +136,7 @@ public class RestSqlAction extends BaseRestHandler {
       Format format = SqlRequestParam.getFormat(request.params());
 
       // Route request to new query engine if it's supported already
+      System.out.println("RestSqlAction.prepareRequest() - Creating SQLQueryRequest for new SQL engine");
       SQLQueryRequest newSqlRequest =
           new SQLQueryRequest(
               sqlRequest.getJsonContent(),
@@ -142,20 +144,29 @@ public class RestSqlAction extends BaseRestHandler {
               request.path(),
               request.params(),
               sqlRequest.cursor());
+      System.out.println("RestSqlAction.prepareRequest() - SQL query: " + sqlRequest.getSql());
+      System.out.println("RestSqlAction.prepareRequest() - Sending request to new SQL engine with fallback handler");
       return newSqlQueryHandler.prepareRequest(
           newSqlRequest,
           (restChannel, exception) -> {
             try {
+              System.out.println("RestSqlAction - New SQL engine failed with exception: " + exception.getClass().getName());
+              System.out.println("RestSqlAction - Exception message: " + exception.getMessage());
+              
               if (newSqlRequest.isExplainRequest()) {
                 LOG.info(
                     "Request is falling back to old SQL engine due to: " + exception.getMessage());
               }
+              System.out.println("RestSqlAction - Request is falling back to old SQL engine due to: " + exception.getMessage());
               LOG.info(
                   "[{}] Request {} is not supported and falling back to old SQL engine",
                   QueryContext.getRequestId(),
                   newSqlRequest);
               LOG.info("Request Query: {}", QueryDataAnonymizer.anonymizeData(sqlRequest.getSql()));
+              System.out.println("RestSqlAction - Calling explainRequest() to create QueryAction for legacy engine");
               QueryAction queryAction = explainRequest(client, sqlRequest, format);
+              System.out.println("RestSqlAction - QueryAction created successfully: " + queryAction.getClass().getName());
+              System.out.println("RestSqlAction - Calling executeSqlRequest() to execute with legacy engine");
               executeSqlRequest(request, queryAction, client, restChannel);
             } catch (Exception e) {
               handleException(restChannel, e);
@@ -168,13 +179,18 @@ public class RestSqlAction extends BaseRestHandler {
   }
 
   private void handleException(RestChannel restChannel, Exception exception) {
+    System.out.println("RestSqlAction.handleException() - Handling exception: " + exception.getClass().getName());
+    System.out.println("RestSqlAction.handleException() - Exception message: " + exception.getMessage());
     logAndPublishMetrics(exception);
     if (exception instanceof OpenSearchException) {
       OpenSearchException openSearchException = (OpenSearchException) exception;
+      System.out.println("RestSqlAction.handleException() - OpenSearchException status: " + openSearchException.status());
       reportError(restChannel, openSearchException, openSearchException.status());
     } else {
+      boolean isClient = isClientError(exception);
+      System.out.println("RestSqlAction.handleException() - Is client error: " + isClient);
       reportError(
-          restChannel, exception, isClientError(exception) ? BAD_REQUEST : INTERNAL_SERVER_ERROR);
+          restChannel, exception, isClient ? BAD_REQUEST : INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -222,7 +238,9 @@ public class RestSqlAction extends BaseRestHandler {
       final NodeClient client, final SqlRequest sqlRequest, Format format)
       throws SQLFeatureNotSupportedException, SqlParseException, SQLFeatureDisabledException {
 
+    System.out.println("RestSqlAction.explainRequest() - Starting legacy SQL analysis for: " + sqlRequest.getSql());
     ColumnTypeProvider typeProvider = performAnalysis(sqlRequest.getSql());
+    System.out.println("RestSqlAction.explainRequest() - Analysis complete, creating QueryAction");
 
     final QueryAction queryAction =
         new SearchDao(client)
@@ -230,6 +248,7 @@ public class RestSqlAction extends BaseRestHandler {
     queryAction.setSqlRequest(sqlRequest);
     queryAction.setFormat(format);
     queryAction.setColumnTypeProvider(typeProvider);
+    System.out.println("RestSqlAction.explainRequest() - QueryAction created: " + queryAction.getClass().getName());
     return queryAction;
   }
 
@@ -239,8 +258,11 @@ public class RestSqlAction extends BaseRestHandler {
       final Client client,
       final RestChannel channel)
       throws Exception {
+    System.out.println("RestSqlAction.executeSqlRequest() - Executing SQL with legacy engine");
+    System.out.println("RestSqlAction.executeSqlRequest() - QueryAction type: " + queryAction.getClass().getName());
     Map<String, String> params = request.params();
     if (isExplainRequest(request)) {
+      System.out.println("RestSqlAction.executeSqlRequest() - This is an EXPLAIN request");
       final String jsonExplanation = queryAction.explain().explain();
       String result;
       if (SqlRequestParam.isPrettyFormat(params)) {
@@ -250,6 +272,7 @@ public class RestSqlAction extends BaseRestHandler {
       }
       channel.sendResponse(new BytesRestResponse(OK, "application/json; charset=UTF-8", result));
     } else {
+      System.out.println("RestSqlAction.executeSqlRequest() - Creating RestExecutor for format: " + SqlRequestParam.getFormat(params));
       RestExecutor restExecutor =
           ActionRequestRestExecutorFactory.createExecutor(SqlRequestParam.getFormat(params));
       // doing this hack because OpenSearch throws exception for un-consumed props
@@ -259,7 +282,9 @@ public class RestSqlAction extends BaseRestHandler {
           additionalParams.put(paramName, request.param(paramName));
         }
       }
+      System.out.println("RestSqlAction.executeSqlRequest() - Executing with RestExecutor: " + restExecutor.getClass().getName());
       restExecutor.execute(client, additionalParams, queryAction, channel);
+      System.out.println("RestSqlAction.executeSqlRequest() - Execution complete");
     }
   }
 
@@ -302,14 +327,17 @@ public class RestSqlAction extends BaseRestHandler {
   }
 
   private static ColumnTypeProvider performAnalysis(String sql) {
+    System.out.println("RestSqlAction.performAnalysis() - Analyzing SQL with legacy analyzer: " + sql);
     LocalClusterState clusterState = LocalClusterState.state();
     SqlAnalysisConfig config = new SqlAnalysisConfig(false, false, 200);
 
     OpenSearchLegacySqlAnalyzer analyzer = new OpenSearchLegacySqlAnalyzer(config);
     Optional<Type> outputColumnType = analyzer.analyze(sql, clusterState);
     if (outputColumnType.isPresent()) {
+      System.out.println("RestSqlAction.performAnalysis() - Analysis complete, output column type present");
       return new ColumnTypeProvider(outputColumnType.get());
     } else {
+      System.out.println("RestSqlAction.performAnalysis() - Analysis complete, no output column type");
       return new ColumnTypeProvider();
     }
   }
